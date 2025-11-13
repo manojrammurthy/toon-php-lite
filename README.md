@@ -149,11 +149,3 @@ vendor/bin/phpunit
 MIT © Manoj Ramamurthy
 
 ---
-
-## ✅ Paste this directly into your README.md
-
-Would you like:
-
-* a **Packagist submission guide**,
-* a **0.1.0 release tagging guide**, or
-* better **project branding** (logo, icon, tagline)?
