@@ -1,18 +1,3 @@
-Great start — but your current README.md needs:
-
-* proper **Markdown formatting**
-* closing code fences
-* fixed section headers
-* bullet lists turned into real Markdown lists
-* spacing and layout improvements
-* better title + description line
-* syntax highlighting for PHP
-* consistent code blocks
-
-I will **clean it up completely**, make it look professional, and ready for Packagist + GitHub.
-
-Here is the improved, polished, production-ready `README.md`:
-
 ---
 
 # 🚀 TOON PHP Lite
