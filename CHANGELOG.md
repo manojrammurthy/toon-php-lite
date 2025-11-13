@@ -5,13 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+---
+
 ## [Unreleased]
 
-### Added
-- (planned) Better error messages with line/column info in `Decoder`.
-- (planned) Support for more TOON constructs from the official spec.
-- (planned) Configuration options for indentation and delimiters.
-- (planned) Static analysis setup (PHPStan) and extended test suite.
+### Planned for v0.2.0
+- Improve `Decoder` error messages with line and column information.
+- Validate row-count mismatches (e.g., `items[3]` but only 2 rows provided).
+- Add `EncodeOptions` class (indent size, trailing newline, future formatting options).
+- Add PHPStan static analysis (`phpstan.neon.dist`) and CI integration.
+- Expand PHPUnit test coverage:
+  - deeply nested values
+  - strings with commas/quotes/colons
+  - empty arrays and objects
+  - full round-trip tests (`decode(encode(data))`)
+- Internal cleanup and stricter type hints.
 
 ---
 
@@ -32,4 +40,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `key[n]{a,b,c}:` + tabular rows
     - `key[n]:` with `- value` items
 - PHPUnit test suite.
-- GitHub Actions CI (PHP 8.1, 8.2, 8.3).
+- GitHub Actions CI for PHP 8.1, 8.2, 8.3.
