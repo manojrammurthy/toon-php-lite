@@ -5,15 +5,17 @@ namespace ToonLite;
 use ToonLite\Encoder;
 use ToonLite\Decoder;
 
-final class Toon
+class Toon
 {
-    public static function encode(mixed $data): string
+    public static function encode(mixed $value, ?EncodeOptions $options = null): string
     {
-        return (new Encoder())->encode($data);
+        $encoder = new Encoder($options);
+        return $encoder->encode($value);
     }
 
-    public static function decode(string $toon): mixed
+    public static function decode(string $text): mixed
     {
-        return (new Decoder())->decode($toon);
+        $decoder = new Decoder();
+        return $decoder->decode($text);
     }
 }
