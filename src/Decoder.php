@@ -8,12 +8,79 @@ class Decoder
 {
     public function decode(string $text): mixed
     {
-        $lines = preg_split('/\R/', trim($text));
-        if ($lines === false) {
+        // 🔹 NEW: preprocess lines (strip comments & blanks)
+        $lines = $this->preprocessLines($text);
+
+        return $this->parseLines($lines);
+    }
+
+    /**
+     * Split text into logical lines and strip comments / blank lines.
+     *
+     * Supports:
+     * - full-line comments starting with "#" or "//"
+     * - inline comments after a value:
+     *     name: Manoj  # this is ignored
+     *     name: Manoj  // this is ignored
+     *
+     * We try not to break things like "http://example.com" by only treating
+     * "#" or "//" as a comment marker when it is at the start of the line
+     * or preceded by whitespace.
+     */
+    private function preprocessLines(string $text): array
+    {
+        $rawLines = preg_split('/\R/', $text);
+        if ($rawLines === false) {
             throw new DecodeException("Failed to split TOON text");
         }
 
-        return $this->parseLines($lines);
+        $lines = [];
+
+        foreach ($rawLines as $line) {
+            $original = $line;
+            $trimmed  = ltrim($line);
+
+            // Full-line comments or empty lines
+            if (
+                $trimmed === '' ||
+                str_starts_with($trimmed, '#') ||
+                str_starts_with($trimmed, '//')
+            ) {
+                continue;
+            }
+
+            $cut = $original;
+
+            // Inline '#' comments
+            $hashPos = strpos($cut, '#');
+            if ($hashPos !== false) {
+                $before = substr($cut, 0, $hashPos);
+                // Only treat as comment if preceded by whitespace or start
+                if ($before === '' || preg_match('/\s$/', $before)) {
+                    $cut = $before;
+                }
+            }
+
+            // Inline '//' comments
+            $slashPos = strpos($cut, '//');
+            if ($slashPos !== false) {
+                $before = substr($cut, 0, $slashPos);
+                // Only treat as comment if preceded by whitespace or start
+                if ($before === '' || preg_match('/\s$/', $before)) {
+                    $cut = $before;
+                }
+            }
+
+            $cut = rtrim($cut);
+
+            if ($cut === '') {
+                continue;
+            }
+
+            $lines[] = $cut;
+        }
+
+        return $lines;
     }
 
     private function parseLines(array $lines): array

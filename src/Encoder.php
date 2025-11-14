@@ -6,11 +6,40 @@ use ToonLite\Exceptions\EncodeException;
 
 class Encoder
 {
-    private int $indent = 2;
+    private EncodeOptions $options;
+
+    public function __construct(?EncodeOptions $options = null)
+    {
+        // Defaults: indent 2 spaces, trailing newline on
+        $this->options = $options ?? EncodeOptions::defaults();
+    }
 
     public function encode(mixed $value): string
     {
-        return rtrim($this->encodeValue($value, 0)) . "\n";
+        // Encode the value starting at indent level 0
+        $body = $this->encodeValue($value, 0);
+
+        // Trim any accidental trailing newlines first
+        $body = rtrim($body, "\r\n");
+
+        if ($this->options->getTrailingNewline()) {
+            return $body . "\n";
+        }
+
+        return $body;
+    }
+
+    /**
+     * Compute indentation string for a given level.
+     */
+    private function indent(int $level): string
+    {
+        $size = $this->options->getIndentSize();
+        if ($size <= 0 || $level <= 0) {
+            return '';
+        }
+
+        return str_repeat(' ', $level * $size);
     }
 
     private function encodeValue(mixed $value, int $level): string
@@ -32,15 +61,17 @@ class Encoder
 
     private function encodeObject(array $obj, int $level): string
     {
-        $indent = str_repeat(" ", $level * $this->indent);
+        $indent = $this->indent($level);
         $out = [];
 
         foreach ($obj as $key => $val) {
             if (is_array($val)) {
                 if ($this->isAssoc($val)) {
+                    // Nested object
                     $out[] = "{$indent}{$key}:";
                     $out[] = $this->encodeObject($val, $level + 1);
                 } else {
+                    // Array property (primitive, tabular, or list)
                     $out[] = $this->encodeArrayProp($key, $val, $level);
                 }
             } else {
@@ -54,10 +85,12 @@ class Encoder
 
     private function encodeArrayProp(string $key, array $arr, int $level): string
     {
-        $count = count($arr);
-        $indent = str_repeat(" ", $level * $this->indent);
+        $count  = count($arr);
+        $indent = $this->indent($level);
 
-        if ($count === 0) return "{$indent}{$key}[0]:";
+        if ($count === 0) {
+            return "{$indent}{$key}[0]:";
+        }
 
         if ($this->isPrimitiveArray($arr)) {
             $values = array_map(fn($v) => $this->encodeValue($v, $level), $arr);
@@ -73,8 +106,8 @@ class Encoder
 
     private function encodeArray(array $arr, int $level): string
     {
-        $count = count($arr);
-        $indent = str_repeat(" ", $level * $this->indent);
+        $count  = count($arr);
+        $indent = $this->indent($level);
 
         if ($this->isPrimitiveArray($arr)) {
             $values = array_map(fn($v) => $this->encodeValue($v, $level), $arr);
@@ -84,7 +117,7 @@ class Encoder
         $out = ["{$indent}[{$count}]:"];
 
         foreach ($arr as $item) {
-            $subIndent = str_repeat(" ", ($level + 1) * $this->indent);
+            $subIndent = $this->indent($level + 1);
 
             if (is_array($item) && $this->isAssoc($item)) {
                 $first = $this->encodeObject($item, $level + 1);
@@ -103,15 +136,15 @@ class Encoder
 
     private function encodeTabular(string $key, array $rows, int $level): string
     {
-        $indent = str_repeat(" ", $level * $this->indent);
-        $count = count($rows);
-        $keys = array_keys($rows[0]);
+        $indent = $this->indent($level);
+        $count  = count($rows);
+        $keys   = array_keys($rows[0]);
 
         $header = "{$indent}{$key}[{$count}]{" . implode(",", $keys) . "}:";
-        $out = [$header];
+        $out    = [$header];
 
         foreach ($rows as $row) {
-            $subIndent = str_repeat(" ", ($level + 1) * $this->indent);
+            $subIndent = $this->indent($level + 1);
             $vals = [];
             foreach ($keys as $k) {
                 $vals[] = $this->encodeValue($row[$k], $level + 1);
@@ -124,13 +157,13 @@ class Encoder
 
     private function encodeListArray(string $key, array $arr, int $level): string
     {
-        $count = count($arr);
-        $indent = str_repeat(" ", $level * $this->indent);
+        $count  = count($arr);
+        $indent = $this->indent($level);
 
         $out = ["{$indent}{$key}[{$count}]:"];
 
         foreach ($arr as $item) {
-            $subIndent = str_repeat(" ", ($level + 1) * $this->indent);
+            $subIndent = $this->indent($level + 1);
             $out[] = "{$subIndent}- " . $this->encodeValue($item, $level + 1);
         }
 
