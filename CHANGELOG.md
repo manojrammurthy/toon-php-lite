@@ -7,9 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.0] - 2025-11-14
+
+### Added
+- `EncodeOptions` for configurable indentation and optional trailing newline in `Toon::encode()`.
+- Comment support in the decoder:
+  - Full-line comments starting with `#` or `//`
+  - Inline comments after values (e.g. `id: 1  # comment`)
+- More informative `DecodeException` messages including line numbers and offending lines.
+
+### Fixed
+- Minor internal consistency between encoder/decoder around indentation handling.
+
+
 ## [Unreleased]
 
-### Planned for v0.2.0
+### Planned for v0.3.0
 - Improve `Decoder` error messages with line and column information.
 - Validate row-count mismatches (e.g., `items[3]` but only 2 rows provided).
 - Add `EncodeOptions` class (indent size, trailing newline, future formatting options).
