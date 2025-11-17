@@ -8,7 +8,7 @@ class Decoder
 {
     public function decode(string $text): mixed
     {
-        // 🔹 NEW: preprocess lines (strip comments & blanks)
+        // 🔹 preprocess lines (strip comments & blanks)
         $lines = $this->preprocessLines($text);
 
         return $this->parseLines($lines);
@@ -26,6 +26,8 @@ class Decoder
      * We try not to break things like "http://example.com" by only treating
      * "#" or "//" as a comment marker when it is at the start of the line
      * or preceded by whitespace.
+     *
+     * @return array<int,string>  Normalized non-empty lines
      */
     private function preprocessLines(string $text): array
     {
@@ -83,6 +85,12 @@ class Decoder
         return $lines;
     }
 
+    /**
+     * Parse normalized TOON lines into a PHP array.
+     *
+     * @param array<int,string> $lines
+     * @return array<string,mixed>
+     */
     private function parseLines(array $lines): array
     {
         $obj = [];

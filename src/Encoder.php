@@ -59,6 +59,9 @@ class Encoder
         throw new EncodeException("Unsupported type: " . gettype($value));
     }
 
+        /**
+     * @param array<string,mixed> $obj
+     */
     private function encodeObject(array $obj, int $level): string
     {
         $indent = $this->indent($level);
@@ -83,6 +86,10 @@ class Encoder
         return implode("\n", $out);
     }
 
+
+        /**
+     * @param array<int,mixed> $arr
+     */
     private function encodeArrayProp(string $key, array $arr, int $level): string
     {
         $count  = count($arr);
@@ -104,6 +111,9 @@ class Encoder
         return $this->encodeListArray($key, $arr, $level);
     }
 
+        /**
+     * @param array<int,mixed> $arr
+     */
     private function encodeArray(array $arr, int $level): string
     {
         $count  = count($arr);
@@ -134,6 +144,10 @@ class Encoder
         return implode("\n", $out);
     }
 
+        /**
+     * @param array<int,array<string,scalar|null>> $rows
+     */
+
     private function encodeTabular(string $key, array $rows, int $level): string
     {
         $indent = $this->indent($level);
@@ -155,6 +169,9 @@ class Encoder
         return implode("\n", $out);
     }
 
+        /**
+     * @param array<int,mixed> $arr
+     */ 
     private function encodeListArray(string $key, array $arr, int $level): string
     {
         $count  = count($arr);
@@ -178,11 +195,17 @@ class Encoder
         return $s;
     }
 
+        /**
+     * @param array<mixed> $arr
+     */
     private function isAssoc(array $arr): bool
     {
         return array_keys($arr) !== range(0, count($arr) - 1);
     }
 
+        /**
+     * @param array<int,mixed> $arr
+     */
     private function isPrimitiveArray(array $arr): bool
     {
         foreach ($arr as $v) {
@@ -190,6 +213,10 @@ class Encoder
         }
         return true;
     }
+
+        /**
+     * @param array<int,mixed> $arr
+     */
 
     private function isUniformObjectArray(array $arr): bool
     {

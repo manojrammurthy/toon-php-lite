@@ -10,6 +10,9 @@ use ToonLite\Toon;
 
 final class EncodeOptionsTest extends TestCase
 {
+    /**
+     * @var array<string,mixed>
+     */
     private array $sample = [
         'id'    => 1,
         'name'  => 'Manoj',
@@ -18,6 +21,7 @@ final class EncodeOptionsTest extends TestCase
             ['sku' => 'B2', 'qty' => 1, 'price' => 14.5],
         ],
     ];
+
 
     public function testDefaultOptionsMatchLegacyEncode(): void
     {
