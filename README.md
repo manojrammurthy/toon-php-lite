@@ -1,7 +1,5 @@
 # 🚀 TOON PHP Lite
 
-# 🚀 TOON PHP Lite
-
 **A lightweight, dependency-free PHP library for encoding & decoding TOON (Token-Oriented Object Notation).**
 
 [![Tests](https://github.com/manojrammurthy/toon-php-lite/actions/workflows/tests.yml/badge.svg)](https://github.com/manojrammurthy/toon-php-lite/actions/workflows/tests.yml)
