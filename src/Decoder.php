@@ -85,7 +85,7 @@ class Decoder
         return $lines;
     }
 
-    /**
+       /**
      * Parse normalized TOON lines into a PHP array.
      *
      * @param array<int,string> $lines
@@ -95,21 +95,43 @@ class Decoder
     {
         $obj = [];
 
-        $mode = null;          // null | 'list' | 'tabular'
-        $currentKey = null;
+        $mode        = null;          // null | 'list' | 'tabular'
+        $currentKey  = null;
         $currentCols = [];
 
-        foreach ($lines as $line) {
-            $line = trim($line);
+        $expectedCount = null;        // for list/tabular blocks
+        $seenCount     = 0;
+        $headerLine    = null;
+
+        foreach ($lines as $index => $lineRaw) {
+            $lineNumber = $index + 1;
+            $line       = trim($lineRaw);
             if ($line === '') {
                 continue;
             }
 
+            // If we are starting a new header, close previous block if open
+            $finishBlockIfNeeded = function () use (&$mode, &$expectedCount, &$seenCount, &$headerLine, &$currentKey) {
+                if ($mode === 'list' || $mode === 'tabular') {
+                    if ($expectedCount !== null && $seenCount !== $expectedCount) {
+                        throw new DecodeException(
+                            "Row count mismatch for '{$currentKey}' (header at line {$headerLine}): "
+                            . "expected {$expectedCount}, got {$seenCount}"
+                        );
+                    }
+                }
+            };
+
             // key: value
             if (preg_match('/^([A-Za-z0-9_]+): (.+)$/', $line, $m)) {
-                $mode = null;
-                $currentKey = null;
-                $currentCols = [];
+                $finishBlockIfNeeded();
+
+                $mode         = null;
+                $currentKey   = null;
+                $currentCols  = [];
+                $expectedCount = null;
+                $seenCount     = 0;
+                $headerLine    = null;
 
                 $obj[$m[1]] = $this->parseValue($m[2]);
                 continue;
@@ -117,36 +139,65 @@ class Decoder
 
             // primitive array: key[N]: a,b,c
             if (preg_match('/^([A-Za-z0-9_]+)\[(\d+)\]: (.+)$/', $line, $m)) {
-                $mode = null;
-                $currentKey = null;
-                $currentCols = [];
+                $finishBlockIfNeeded();
 
-                $values = array_map('trim', explode(",", $m[3]));
+                $mode         = null;
+                $currentKey   = null;
+                $currentCols  = [];
+                $expectedCount = null;
+                $seenCount     = 0;
+                $headerLine    = null;
+
+                $expected = (int) $m[2];
+                $values   = array_map('trim', explode(",", $m[3]));
+
+                if (count($values) !== $expected) {
+                    throw new DecodeException(
+                        "Value count mismatch for '{$m[1]}' at line {$lineNumber}: "
+                        . "expected {$expected}, got " . count($values)
+                    );
+                }
+
                 $obj[$m[1]] = array_map([$this, 'parseValue'], $values);
                 continue;
             }
 
             // tabular header: key[N]{a,b,c}:
             if (preg_match('/^([A-Za-z0-9_]+)\[(\d+)\]\{(.+)\}:$/', $line, $m)) {
-                $currentKey = $m[1];
+                $finishBlockIfNeeded();
+
+                $currentKey  = $m[1];
                 $currentCols = array_map('trim', explode(",", $m[3]));
                 $obj[$currentKey] = [];
                 $mode = 'tabular';
+
+                $expectedCount = (int) $m[2];
+                $seenCount     = 0;
+                $headerLine    = $lineNumber;
+
                 continue;
             }
 
             // list header: key[N]:
             if (preg_match('/^([A-Za-z0-9_]+)\[(\d+)\]:$/', $line, $m)) {
-                $currentKey = $m[1];
+                $finishBlockIfNeeded();
+
+                $currentKey  = $m[1];
                 $obj[$currentKey] = [];
                 $currentCols = [];
                 $mode = 'list';
+
+                $expectedCount = (int) $m[2];
+                $seenCount     = 0;
+                $headerLine    = $lineNumber;
+
                 continue;
             }
 
             // list item: - value
             if ($mode === 'list' && preg_match('/^- (.+)$/', $line, $m)) {
                 $obj[$currentKey][] = $this->parseValue($m[1]);
+                $seenCount++;
                 continue;
             }
 
@@ -154,7 +205,9 @@ class Decoder
             if ($mode === 'tabular') {
                 $vals = array_map('trim', explode(",", $line));
                 if (count($vals) !== count($currentCols)) {
-                    throw new DecodeException("Tabular row mismatch at: $line");
+                    throw new DecodeException(
+                        "Tabular row mismatch at line {$lineNumber}: {$line}"
+                    );
                 }
 
                 $row = [];
@@ -162,14 +215,26 @@ class Decoder
                     $row[$col] = $this->parseValue($vals[$i]);
                 }
                 $obj[$currentKey][] = $row;
+                $seenCount++;
                 continue;
             }
 
-            throw new DecodeException("Cannot parse line: $line");
+            throw new DecodeException("Cannot parse line {$lineNumber}: {$line}");
+        }
+
+        // End of file: ensure last block's count matches
+        if ($mode === 'list' || $mode === 'tabular') {
+            if ($expectedCount !== null && $seenCount !== $expectedCount) {
+                throw new DecodeException(
+                    "Row count mismatch for '{$currentKey}' (header at line {$headerLine}): "
+                    . "expected {$expectedCount}, got {$seenCount}"
+                );
+            }
         }
 
         return $obj;
     }
+
 
     private function parseValue(string $v): mixed
     {
