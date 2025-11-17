@@ -14,25 +14,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comment support in the decoder:
   - Full-line comments starting with `#` or `//`
   - Inline comments after values (e.g. `id: 1  # comment`)
-- More informative `DecodeException` messages including line numbers and offending lines.
+- Validation for row-count mismatches:
+  - Primitive arrays: `tags[3]: php,ai` → throws `DecodeException`.
+  - List arrays: `tags[2]:` but only one `- value`.
+  - Tabular arrays: `items[3]{...}:` but only two rows.
+- PHPStan static analysis configuration (`phpstan.neon.dist`) and GitHub Actions CI step.
+- Additional PHPUnit coverage, including round-trip tests (`decode(encode($data))`) and error-path tests.
 
-### Fixed
-- Minor internal consistency between encoder/decoder around indentation handling.
+### Changed
+- Decoder error messages now include line numbers and more context for mismatches.
+- Internal cleanup and stricter type hints to satisfy PHPStan.
 
+---
 
 ## [Unreleased]
 
 ### Planned for v0.3.0
-- Improve `Decoder` error messages with line and column information.
-- Validate row-count mismatches (e.g., `items[3]` but only 2 rows provided).
-- Add `EncodeOptions` class (indent size, trailing newline, future formatting options).
-- Add PHPStan static analysis (`phpstan.neon.dist`) and CI integration.
-- Expand PHPUnit test coverage:
+- Nested object decoding using indentation (e.g. `user:` blocks).
+- Improved `Decoder` error messages with column information.
+- Multiline string support.
+- Minified TOON output option.
+- More exhaustive PHPUnit tests:
   - deeply nested values
   - strings with commas/quotes/colons
   - empty arrays and objects
-  - full round-trip tests (`decode(encode(data))`)
-- Internal cleanup and stricter type hints.
+- Further internal cleanup and static analysis rules.
 
 ---
 

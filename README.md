@@ -1,5 +1,7 @@
 # 🚀 TOON PHP Lite
 
+# 🚀 TOON PHP Lite
+
 **A lightweight, dependency-free PHP library for encoding & decoding TOON (Token-Oriented Object Notation).**
 
 [![Tests](https://github.com/manojrammurthy/toon-php-lite/actions/workflows/tests.yml/badge.svg)](https://github.com/manojrammurthy/toon-php-lite/actions/workflows/tests.yml)
@@ -12,22 +14,32 @@ This library implements a **lite encoder + decoder** for everyday PHP projects.
 
 ---
 
-# ✨ Features
+## ✨ Features
 
 * ✔ Simple API: `Toon::encode()` / `Toon::decode()`
 * ✔ Supports:
-
-  * objects
-  * nested objects
-  * primitive arrays
-  * list arrays
-  * tabular arrays (`key[n]{a,b,c}: ...`)
-* ✔ Zero external dependencies
+  * objects (top-level key/value pairs)
+  * primitive arrays: `tags[3]: php,ai,iot`
+  * list arrays: 
+    ```toon
+    tags[2]:
+      - php
+      - ai
+    ```
+  * tabular arrays (`key[n]{a,b,c}:` rows)
+* ✔ Comment support in decoder:
+  * full-line `#` / `//` comments
+  * inline comments after values (`id: 1  # note`)
+* ✔ Row-count validation:
+  * throws `DecodeException` when declared count `[N]` doesn’t match actual items
+* ✔ Configurable encoding via `EncodeOptions` (indent size, trailing newline)
+* ✔ Zero external runtime dependencies
 * ✔ Fully unit-tested (PHPUnit)
-* ✔ GitHub Actions CI included
+* ✔ PHPStan static analysis + GitHub Actions CI
 * ✔ PHP 8.1 – 8.3 supported
 
 ---
+
 
 # 📦 Installation
 
@@ -88,41 +100,62 @@ items[2]{sku,qty,price}:
 
 # 📘 API Reference
 
-## `ToonLite\Toon::encode(mixed $data): string`
+ToonLite\Toon::encode(mixed $data, ?EncodeOptions $options = null): string
 
 Encodes PHP values into TOON.
 
 Mapping rules:
 
-* **Associative arrays** →
-  `key: value`
-* **Primitive lists** →
-  `key[n]: a,b,c`
-* **Uniform object lists** →
-  `key[n]{col1,col2}:`
-    `val1,val2`
-* **Mixed lists** →
-  `key[n]:`
-    `- value`
+Associative arrays →
+key: value
+
+Primitive lists →
+key[n]: a,b,c
+
+Uniform object lists →
+key[n]{col1,col2}:
+
+val1,val2
+val3,val4
+
+Mixed lists →
+
+key[n]:
+  - value
+  - other
+
 
 ---
 
 ## `ToonLite\Toon::decode(string $toon): mixed`
 
-Parses a subset of the TOON specification back into:
+ToonLite\Toon::decode(string $toon): mixed
 
-* associative arrays
-* numeric arrays
-* primitive values (int, float, bool, string)
+Parses TOON back into PHP:
+
+associative arrays (array<string,mixed>)
+
+numeric arrays
+
+primitives (int, float, bool, string, null)
 
 Supported syntax:
 
-* `key: value`
-* `key[n]: a,b,c`
-* `key[n]{a,b,c}:` followed by tabular rows
-* `key[n]:` + `- value` items
+key: value
 
----
+key[n]: a,b,c
+
+key[n]{a,b,c}: followed by tabular rows
+
+key[n]: + - value list items
+
+Comments:
+
+# comment
+
+// comment
+
+inline id: 1 # this is ignored
 
 # 🛠 Development
 
@@ -136,9 +169,9 @@ vendor/bin/phpunit
 
 # 🗺 Roadmap
 
-* [ ] Full spec coverage (advanced TOON blocks)
-* [ ] Better error handling with line/column numbers
-* [ ] Configurable indentation + delimiters
+* [ ]  Nested object decoding using indentation (e.g. user: … blocks)
+* [ ]  Full TOON spec coverage (advanced blocks)
+* [ ]  Better error handling with line/column numbers
 * [ ] Minified TOON output option
 * [ ] Integration with official TOON conformance tests
 
