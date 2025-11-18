@@ -6,17 +6,13 @@ use ToonLite\Exceptions\DecodeException;
 
 class Decoder
 {
-    private const INDENT = 2;
-
     public function decode(string $text): mixed
     {
-        // preprocess lines (strip comments & blanks, keep leading spaces)
+        /** @var array<int,string> $lines */
         $lines = $this->preprocessLines($text);
+        $index = 0;
 
-        $index  = 0;
-        $result = $this->parseBlock($lines, $index, 0);
-
-        return $result;
+        return $this->parseBlock($lines, $index, 0);
     }
 
     /**
@@ -32,7 +28,7 @@ class Decoder
      * "#" or "//" as a comment marker when it is at the start of the line
      * or preceded by whitespace.
      *
-     * @return array<int,string> Normalized non-empty lines (leading spaces kept)
+     * @return array<int,string> Normalized non-empty lines (indent preserved)
      */
     private function preprocessLines(string $text): array
     {
@@ -41,6 +37,7 @@ class Decoder
             throw new DecodeException('Failed to split TOON text');
         }
 
+        /** @var array<int,string> $lines */
         $lines = [];
 
         foreach ($rawLines as $line) {
@@ -63,7 +60,7 @@ class Decoder
             if ($hashPos !== false) {
                 $before = substr($cut, 0, $hashPos);
                 // Only treat as comment if preceded by whitespace or start
-                if ($before === '' || preg_match('/\s$/', $before)) {
+                if ($before === '' || preg_match('/\s$/', $before) === 1) {
                     $cut = $before;
                 }
             }
@@ -73,7 +70,7 @@ class Decoder
             if ($slashPos !== false) {
                 $before = substr($cut, 0, $slashPos);
                 // Only treat as comment if preceded by whitespace or start
-                if ($before === '' || preg_match('/\s$/', $before)) {
+                if ($before === '' || preg_match('/\s$/', $before) === 1) {
                     $cut = $before;
                 }
             }
@@ -91,186 +88,241 @@ class Decoder
     }
 
     /**
-     * Parse a block of TOON lines at a given indentation level.
+     * Parse a block of TOON at a given indentation level.
+     *
+     * Handles:
+     * - key: value
+     * - key:            (object header, nested block)
+     * - key[N]: a,b,c   (primitive array)
+     * - key[N]:         (list header, then "- value" items)
+     * - key[N]{a,b}:    (tabular header, then rows)
+     * - multiline strings with """ ... """
      *
      * @param array<int,string> $lines
+     * @param int               $index      current index in $lines (by ref)
+     * @param int               $baseIndent indentation level for this block
+     *
      * @return array<string,mixed>
      */
-    private function parseBlock(array $lines, int &$index, int $minIndent): array
+    private function parseBlock(array $lines, int &$index, int $baseIndent): array
     {
-        $obj = [];
+        $result    = [];
+        $lineCount = count($lines);
 
-        /** @var null|'list'|'tabular' $mode */
-        $mode          = null;
-        /** @var string|null $currentKey */
-        $currentKey    = null;
-        /** @var array<int,string> $currentCols */
-        $currentCols   = [];
-        /** @var int|null $expectedCount */
-        $expectedCount = null;
-        /** @var int $seenCount */
-        $seenCount     = 0;
-        /** @var int|null $headerLine */
-        $headerLine    = null;
-
-        $finishBlock = function () use (
-            &$mode,
-            &$expectedCount,
-            &$seenCount,
-            &$headerLine,
-            &$currentKey
-        ): void {
-            if ($mode === 'list' || $mode === 'tabular') {
-                if ($expectedCount !== null && $seenCount !== $expectedCount) {
-                    throw new DecodeException(
-                        sprintf(
-                            "Row count mismatch for '%s' (header at line %d): expected %d, got %d",
-                            (string) $currentKey,
-                            $headerLine ?? 0,
-                            $expectedCount,
-                            $seenCount
-                        )
-                    );
-                }
-            }
-
-            $mode          = null;
-            $currentKey    = null;
-            $expectedCount = null;
-            $seenCount     = 0;
-            $headerLine    = null;
-        };
-
-        $numLines = count($lines);
-
-        while ($index < $numLines) {
-            $raw        = $lines[$index];
-            $lineNumber = $index + 1;
-
-            if (trim($raw) === '') {
-                $index++;
-                continue;
-            }
-
+        while ($index < $lineCount) {
+            $raw    = $lines[$index];
             $indent = strspn($raw, ' ');
 
-            // If indentation decreases, this block is done
-            if ($indent < $minIndent) {
-                $finishBlock();
+            // Block ends when indentation decreases
+            if ($indent < $baseIndent) {
                 break;
+            }
+
+            // We only expect lines exactly at this block's indent here.
+            // Deeper indent is consumed by recursive calls or list/tabular parsing.
+            if ($indent > $baseIndent) {
+                throw new DecodeException(
+                    sprintf('Unexpected indentation at line %d: %s', $index + 1, $raw)
+                );
             }
 
             $content = ltrim($raw);
 
-            // Nested object header: "key:" with no value
-            if (preg_match('/^([A-Za-z0-9_]+):$/', $content, $m)) {
-                // close any open list/tabular
-                $finishBlock();
-
+            // -----------------------------------------------------------------
+            // 1) Object header: "key:"
+            // -----------------------------------------------------------------
+            if (preg_match('/^([A-Za-z0-9_]+):$/', $content, $m) === 1) {
                 $key = $m[1];
+                $index++; // move to first child line
 
-                // Recurse into nested block, which starts on the next line
-                $index++;
-                $child = $this->parseBlock($lines, $index, $indent + self::INDENT);
-                $obj[$key] = $child;
-
+                $result[$key] = $this->parseBlock($lines, $index, $baseIndent + 2);
                 continue;
             }
 
-            // key: value
-            if (preg_match('/^([A-Za-z0-9_]+): (.+)$/', $content, $m)) {
-                $finishBlock();
+            // -----------------------------------------------------------------
+            // 2) key: value  (including multiline """...""" support)
+            // -----------------------------------------------------------------
+            if (preg_match('/^([A-Za-z0-9_]+): (.+)$/', $content, $m) === 1) {
+                $key      = $m[1];
+                $valueRaw = $m[2];
 
-                $obj[$m[1]] = $this->parseValue($m[2]);
+                // Multiline string: key: """
+                if ($valueRaw === '"""') {
+                    /** @var array<int,string> $buffer */
+                    $buffer  = [];
+                    $closed  = false;
+                    $index++; // move to first line inside block
+
+                    while ($index < $lineCount) {
+                        $lineInner = $lines[$index];
+
+                        // Closing delimiter if trimmed line is just """
+                        if (ltrim($lineInner) === '"""') {
+                            $closed = true;
+                            $index++; // consume closing line
+                            break;
+                        }
+
+                        $buffer[] = rtrim($lineInner);
+                        $index++;
+                    }
+
+                    if (!$closed) {
+                        throw new DecodeException(
+                            sprintf('Unterminated multiline string for key "%s"', $key)
+                        );
+                    }
+
+                    $result[$key] = implode("\n", $buffer);
+                    continue;
+                }
+
+                // Normal single-line value
+                $result[$key] = $this->parseValue($valueRaw);
                 $index++;
                 continue;
             }
 
-            // primitive array: key[N]: a,b,c
-            if (preg_match('/^([A-Za-z0-9_]+)\[(\d+)\]: (.+)$/', $content, $m)) {
-                $finishBlock();
-
+            // -----------------------------------------------------------------
+            // 3) Primitive array: key[N]: a,b,c
+            // -----------------------------------------------------------------
+            if (preg_match('/^([A-Za-z0-9_]+)\[(\d+)\]: (.+)$/', $content, $m) === 1) {
+                $key      = $m[1];
                 $expected = (int) $m[2];
                 $values   = array_map('trim', explode(',', $m[3]));
 
                 if (count($values) !== $expected) {
                     throw new DecodeException(
-                        "Value count mismatch for '{$m[1]}' at line {$lineNumber}: " .
-                        "expected {$expected}, got " . count($values)
+                        sprintf(
+                            "Value count mismatch for '%s' at line %d: expected %d, got %d",
+                            $key,
+                            $index + 1,
+                            $expected,
+                            count($values)
+                        )
                     );
                 }
 
-                $obj[$m[1]] = array_map([$this, 'parseValue'], $values);
+                $result[$key] = array_map([$this, 'parseValue'], $values);
                 $index++;
                 continue;
             }
 
-            // tabular header: key[N]{a,b,c}:
-            if (preg_match('/^([A-Za-z0-9_]+)\[(\d+)\]\{(.+)\}:$/', $content, $m)) {
-                $finishBlock();
+            // -----------------------------------------------------------------
+            // 4) List header: key[N]:
+            // -----------------------------------------------------------------
+            if (preg_match('/^([A-Za-z0-9_]+)\[(\d+)\]:$/', $content, $m) === 1) {
+                $key      = $m[1];
+                $expected = (int) $m[2];
+                $index++; // move to first item
 
-                $currentKey       = $m[1];
-                $currentCols      = array_map('trim', explode(',', $m[3]));
-                $obj[$currentKey] = [];
-                $mode             = 'tabular';
-                $expectedCount    = (int) $m[2];
-                $seenCount        = 0;
-                $headerLine       = $lineNumber;
+                /** @var array<int,mixed> $items */
+                $items = [];
 
-                $index++;
-                continue;
-            }
+                while ($index < $lineCount) {
+                    $raw2    = $lines[$index];
+                    $indent2 = strspn($raw2, ' ');
 
-            // list header: key[N]:
-            if (preg_match('/^([A-Za-z0-9_]+)\[(\d+)\]:$/', $content, $m)) {
-                $finishBlock();
+                    // End of this list block when indentation goes back
+                    if ($indent2 <= $baseIndent) {
+                        break;
+                    }
 
-                $currentKey       = $m[1];
-                $obj[$currentKey] = [];
-                $currentCols      = [];
-                $mode             = 'list';
-                $expectedCount    = (int) $m[2];
-                $seenCount        = 0;
-                $headerLine       = $lineNumber;
+                    $content2 = ltrim($raw2);
 
-                $index++;
-                continue;
-            }
+                    if (preg_match('/^- (.+)$/', $content2, $mm) !== 1) {
+                        throw new DecodeException(
+                            sprintf('Expected list item at line %d: %s', $index + 1, $raw2)
+                        );
+                    }
 
-            // list item: - value
-            if ($mode === 'list' && preg_match('/^- (.+)$/', $content, $m)) {
-                $obj[$currentKey][] = $this->parseValue($m[1]);
-                $seenCount++;
-                $index++;
-                continue;
-            }
+                    $items[] = $this->parseValue($mm[1]);
+                    $index++;
+                }
 
-            // tabular row: values row aligned with currentCols
-            if ($mode === 'tabular') {
-                $vals = array_map('trim', explode(',', $content));
-                if (count($vals) !== count($currentCols)) {
+                if (count($items) !== $expected) {
                     throw new DecodeException(
-                        "Tabular row mismatch at line {$lineNumber}: {$content}"
+                        sprintf(
+                            "Row count mismatch for '%s': expected %d, got %d",
+                            $key,
+                            $expected,
+                            count($items)
+                        )
                     );
                 }
 
-                $row = [];
-                foreach ($currentCols as $iCol => $col) {
-                    $row[$col] = $this->parseValue($vals[$iCol]);
-                }
-                $obj[$currentKey][] = $row;
-                $seenCount++;
-                $index++;
+                $result[$key] = $items;
                 continue;
             }
 
-            throw new DecodeException("Cannot parse line {$lineNumber}: {$content}");
+            // -----------------------------------------------------------------
+            // 5) Tabular header: key[N]{a,b,c}:
+            // -----------------------------------------------------------------
+            if (preg_match('/^([A-Za-z0-9_]+)\[(\d+)\]\{(.+)\}:$/', $content, $m) === 1) {
+                $key      = $m[1];
+                $expected = (int) $m[2];
+                $cols     = array_map('trim', explode(',', $m[3]));
+                $index++; // move to first row
+
+                /** @var array<int,array<string,mixed>> $rows */
+                $rows = [];
+
+                while ($index < $lineCount) {
+                    $raw2    = $lines[$index];
+                    $indent2 = strspn($raw2, ' ');
+
+                    // End of this tabular block when indentation goes back
+                    if ($indent2 <= $baseIndent) {
+                        break;
+                    }
+
+                    $line2 = trim($raw2);
+                    $vals  = array_map('trim', explode(',', $line2));
+
+                    if (count($vals) !== count($cols)) {
+                        throw new DecodeException(
+                            sprintf(
+                                'Tabular row mismatch at line %d: %s',
+                                $index + 1,
+                                $raw2
+                            )
+                        );
+                    }
+
+                    /** @var array<string,mixed> $row */
+                    $row = [];
+                    foreach ($cols as $i => $col) {
+                        $row[$col] = $this->parseValue($vals[$i]);
+                    }
+
+                    $rows[] = $row;
+                    $index++;
+                }
+
+                if (count($rows) !== $expected) {
+                    throw new DecodeException(
+                        sprintf(
+                            "Row count mismatch for '%s': expected %d, got %d",
+                            $key,
+                            $expected,
+                            count($rows)
+                        )
+                    );
+                }
+
+                $result[$key] = $rows;
+                continue;
+            }
+
+            // -----------------------------------------------------------------
+            // 6) Nothing matched
+            // -----------------------------------------------------------------
+            throw new DecodeException(
+                sprintf('Cannot parse line %d: %s', $index + 1, $content)
+            );
         }
 
-        // End of this block: check any open list/tabular
-        $finishBlock();
-
-        return $obj;
+        return $result;
     }
 
     private function parseValue(string $v): mixed
@@ -292,7 +344,7 @@ class Decoder
         }
 
         // quoted string
-        if (preg_match('/^"(.*)"$/', $v, $m)) {
+        if (preg_match('/^"(.*)"$/', $v, $m) === 1) {
             return stripcslashes($m[1]);
         }
 
