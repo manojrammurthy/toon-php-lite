@@ -2,20 +2,48 @@
 
 namespace ToonLite;
 
-use ToonLite\Encoder;
-use ToonLite\Decoder;
-
-class Toon
+final class Toon
 {
-    public static function encode(mixed $value, ?EncodeOptions $options = null): string
+    /**
+     * Encode PHP data into TOON.
+     *
+     * @param mixed $data
+     * @param EncodeOptions|int|null $optionsOrIndent
+     *        - null => default options
+     *        - int  => treated as indentSize (BC helper)
+     *        - EncodeOptions => full config
+     */
+    public static function encode(mixed $data, $optionsOrIndent = null): string
     {
+        if ($optionsOrIndent instanceof EncodeOptions) {
+            $options = $optionsOrIndent;
+        } elseif (is_int($optionsOrIndent)) {
+            // BC: Toon::encode($data, 4) => indentSize=4
+            $options = (new EncodeOptions())->setIndentSize($optionsOrIndent);
+        } else {
+            $options = EncodeOptions::defaults();
+        }
+
+        // If minify is requested, force indentSize to 0
+        if ($options->isMinify()) {
+            $options = $options->withIndentSize(0);
+        }
+
         $encoder = new Encoder($options);
-        return $encoder->encode($value);
+
+        return $encoder->encode($data);
     }
 
-    public static function decode(string $text): mixed
+    /**
+     * Decode TOON string back into PHP data.
+     *
+     * @param string $toon
+     * @return mixed
+     */
+    public static function decode(string $toon): mixed
     {
         $decoder = new Decoder();
-        return $decoder->decode($text);
+
+        return $decoder->decode($toon);
     }
 }

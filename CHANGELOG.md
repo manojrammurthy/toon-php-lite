@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+---
+
+## [Unreleased]
+
+## [0.4.0] – 2025-11-19
+
+### Added
+- Full **multiline string** support using triple-quoted blocks:
+  ```toon
+  bio: """
+  I am Manoj.
+  I love PHP and EVs.
+  """
+
+  Minification mode (EncodeOptions::setMinify(true)), producing compact TOON output while retaining valid structure.
+  Extensive new PHPUnit tests:
+
+deeply nested objects
+
+mixed tabular + list + primitive arrays
+
+multiline encode/decode
+
+round-trip stability
+
+EncodeOptions behaviour
+
+minified output validation
+
+Added strict type declarations everywhere.
+
+Changed
+
+Rewritten decoder with clearer indentation rules and better structural validation.
+
+Cleaned and modularized encoder logic.
+
+Improved handling of edge cases in lists, tabular arrays, and primitive arrays.
+
+EncodeOptions moved to src/, now fully isolated from tests.
+
+---
+
+## [0.3.0] - 2025-11-17
+
+### Added
+- Multiline string decoding using `""" ... """`
+- Nested object decoding using indentation
+- Row-count validation for list and tabular arrays
+- Better error messages with line numbers and context
+- Full round-trip safety for nested + complex values
+
+### Improved
+- More stable parsing engine (recursive descent)
+- More strict primitive/array handling
+- PHPStan level 8 compatibility
+
+### Tests
+- Added multiline string test suite
+- Added nested object tests
+- Added deep round-trip stability tests
+- 27 PHPUnit tests, 52 assertions — all passing
+
+---
+
+
 ---
 
 ## [0.2.0] - 2025-11-14
@@ -27,18 +94,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
-
-### Planned for v0.3.0
-- Nested object decoding using indentation (e.g. `user:` blocks).
-- Improved `Decoder` error messages with column information.
-- Multiline string support.
-- Minified TOON output option.
-- More exhaustive PHPUnit tests:
-  - deeply nested values
-  - strings with commas/quotes/colons
-  - empty arrays and objects
-- Further internal cleanup and static analysis rules.
 
 ---
 
